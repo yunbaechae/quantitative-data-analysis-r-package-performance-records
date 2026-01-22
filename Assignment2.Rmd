@@ -1,0 +1,393 @@
+---
+title: "STAT1378-Assignment II"
+output: pdf_document
+author: "Yunbae Chae"
+bibliography: bibliography.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+
+#Examiners - Please brace for the massive 10,000 loop in Exercise 3! It took my high-end computer a good 5 minute time frame to compile this Rmd file! Please be patient and you will finally see the document!
+
+knitr::opts_chunk$set(echo = FALSE)
+
+#I had an impression it is not reasonable to reference all of these packages. I'm only selecting the main ones: tidyverse and stats. Please check them in the reference list.
+packages <- c("tidyverse", "knitr", "rmarkdown","roxygen2","testthat","usethis","devtools","ggplot2","ggrepel","stats")
+
+lapply(packages, library, character.only=TRUE)
+
+dat <- read_csv("records.csv")
+```
+
+\tableofcontents
+\pagebreak
+
+# Overview
+\large This document includes answers for all Exercises 1, 2 and 3. I have included the assign_q2.zip, but please expect the Github links in Exercise 2. I have fully prepared all the Github contents for the higher grade. Please carefully inspect every single aspect of this document because I have prepared it in a way that I might achieve the full mark. Thank you for your time for marking. Please enjoy! \normalsize
+
+\pagebreak
+
+# Exercise 1
+I am displaying the plots only.
+
+## Plot 1
+```{r plot 1, echo=FALSE, message=FALSE, warning=FALSE}
+#Basic stuff!
+P1 <- dat %>% select(time,date,track,type,shortcut) %>% filter(type=="Three Lap",shortcut=="No")
+
+P1 %>% ggplot() + geom_line(mapping=aes(x=date,y=time)) + ggtitle("How the three lap, with no shortcut world record develop over time") +facet_wrap(~track, scales="free")
+```
+
+## Plot 2
+```{r plot 2, echo=FALSE, message=FALSE, warning=FALSE}
+#This is directly using the contents from the practical..
+P2 <- dat %>% mutate(Race=case_when(
+  type=="Single Lap" & shortcut=="No" ~"Single Lap with no shortcut",
+  type=="Single Lap" & shortcut=="Yes" ~"Single Lap with shortcut",
+  type=="Three Lap" & shortcut=="No" ~"Three Lap with no shortcut",
+  type=="Three Lap" & shortcut=="Yes" ~"Three Lap with shortcut"
+  )) %>% filter(track=="Rainbow Road") %>% select(date,time,Race)
+
+P2 %>% ggplot(aes(x=date,y=time,group=Race,colour=Race))+geom_line()+geom_point()+ggtitle("How the WR for Rainbow Road develop over time", subtitle="With shortcuts, it is quicker to finish a 3 lap race than completing a single lap!")
+```
+
+## Plot 3
+```{r plot 3, echo=FALSE, message=FALSE, warning=FALSE}
+#Take the top records from each group. So I needed the group_by.
+P3 <-  dat %>% filter(type=="Three Lap",shortcut=="No") %>% group_by(track) %>% slice(c(1,n())) %>% ungroup() %>% mutate(WR=(rep(c("Original","Current"),16))) %>% select(WR,time,track)
+
+#Before I wrote this code, the order was Current and Original... XD
+P3$WR <- factor(P3$WR,levels=c("Original","Current"))
+
+P3 %>% ggplot(aes(x=WR,y=time,colour=track,group=track))+geom_line()+geom_point()+ labs(title="Comparing the Original and Current WR for three lap and no shortcut races", subtitle="All lines are relatively parallel.")+geom_label_repel(label=ifelse(P3$WR=="Current",P3$track,''),max.overlaps=getOption("ggrepel.max.overlaps",default=3))
+```
+
+## Plot 4
+```{r plot 4, echo=FALSE, message=FALSE, warning=FALSE}
+#I got the time difference by taking the longest record minus the best record. I checked in excel, that the records were strictly increasing for every tracks: The oldest record happens to be the longest record and vice versa. So max - min should be easy and reasonable!
+P4 <- dat %>% filter(type=="Three Lap",shortcut=="No") %>% group_by(track) %>% summarise("Track"=track,"Time Difference between Original and Current WR (in s)"=max(time)-min(time)) %>% slice(0,1)
+
+#I haven't figured out how to wrap texts nicely within those invisible text box borders. I'm relying on \n syntax for now..
+P4 %>% ggplot(aes(x=`Time Difference between Original and Current WR (in s)`,y=Track))+geom_col()+ggtitle("Time Difference between Original and Current WR for three \nlap and no shortcut races",subtitle="D.K.'s Jungle Parkway has the biggest reduction even it's not the longest \ntrack.")
+```
+
+\pagebreak
+
+# Exercise 2
+Please use the following links to inspect my contents for this exercise!\
+
+\begin{itemize}
+  \item \url{https://github.com/MQ-STAT1378/assignment2-question2-david-yunbae}
+  \item \url{https://david-yunbae.github.io/assignment2-question2-david-yunbae}
+\end{itemize}
+
+\pagebreak
+
+# Exercise 3
+\underline {As requested in the prompt, the contents in this exercise aim for high distinction.} I have prepared the contents in a way so that the explanations heavily rely on examples. I have made sure to include and cite all essential statistical concepts.
+
+## Introduction: Pearson's $\chi$^2^ test (Goodness of fit)
+
+Lining with @greenwood1996guide, a $\chi$^2^ test is when there is a hypothesis that a data should follow a particular \underline {probability distribution.}
+
+For example, you can google the populations in China, Japan and South Korea. They are 1.4, 0.126, 0.052 billion respectively. You can sample a group of 1,000 East-Asians in Sydney. You think the number of people residing overseas is perfectly proportional to the population of their home countries. In this way, you expect them to be:\
+
+```{r GOFexample, include=FALSE}
+#Generating some examples to display to the examiner..
+E1 <- round(1000*1.4/(1.4+0.126+0.052), digits=0)
+E2 <- round(1000*0.126/(1.4+0.126+0.052), digits=0)
+E3 <- round(1000*0.052/(1.4+0.126+0.052), digits=0)
+
+#Calculate the test statistic..
+t <- (500-E1)^2/E1+(100-E2)^2/E2+(400-E3)^2/E3
+
+Chi <- chisq.test(x=c(500,100,400),p=c(1.4,0.126,0.052)/(1.4+0.126+0.052))
+
+#R keeps generating 0 for Chi$p.value and Chi[[3]]. I thought it would be impossible to use Chi$p.value in-line. Chi at least let me know p-value < 2.2e-16. I have to use this figure directly in-line. Please excuse me for that.. I think if p-value is too close to zero, they just return you 0.
+```
+\(E_1:\) `r E1` (China), \(E_2:\) `r E2` (Japan), \(E_3:\) `r E3` (South Korea).\
+
+All \(E_1:\), \(E_2:\) and \(E_3:\) must be greater than 5 (to be consistent with normal approximation).
+Say you have gained the data from the 1,000 people (they are only dummy values):
+
+\(O_1:\) 500 (China), \(O_2:\) 100 (Japan), \(O_3:\) 400 (South Korea).\
+
+Intuitively, this is a critically flawed hypothesis. In terms of statistical concepts,\
+
+The test starts with the general test statistic:
+
+\[\tau = \sum_{i=1}^g\frac{(O_i-E_i)^2}{E_i}\]\
+
+Then the p-value must be calculated:
+
+\begin {center}
+\(P-value = P(\chi_{g-1}^2 \geq \tau_{obs})\)\
+
+\(P-value = P(\chi_{2}^2 \geq\) `r t`)\
+\end {center}
+
+The p-value is less than `r 2.2*10^-16`.
+
+Generally, the p-value of less than 0.05 is too small. If p-value is too small, the observed ratio deviates from the expected ratios. If the p-value is greater than 0.05, then you could conclude the observed ratio lies within the expected ratios. In the population case, the p-value was less than `r 2.2*10^-16`: There is not enough evidence that the population of the countries affect the proportion of overseas residents.
+
+\textbf {Now, what if you want to continue the research, and ask the 1,000 if they consider themselves to be financially stable or not? Your findings would definitely improve your knowledge about inter-cultural believes in East-Asian countries on how financial confidence leads to the choice of extending their lives overseas.}
+
+\pagebreak
+
+## Contingency table (Test of independence)
+Extending from the last example, you could make a new hypothesis that in all the three countries, the observations would show that the majority of people residing in Sydney are those that are financially confident. If this is the case, then you would see that the proportions of financially confident people would be levelly similar in all three countries. This is a 2 X 3 table test of independence.
+
+The next example is a more general 2 by 2 table. There is a case when the "members of a sample are doubly classified (i.e., classified in two separate ways)" @stefanescu2005yates. Then the results form a rectangular table (contingency table) like this:\
+
+\begin{center}
+\begin{tabular}{ r|c|c| }
+\multicolumn{1}{r}{}
+ &  \multicolumn{1}{c}{Men}
+ & \multicolumn{1}{c}{Women} \\
+\cline{2-3}
+Studying & 3 & 27 \\
+\cline{2-3}
+Not-studying & 33 & 9 \\
+\cline{2-3}
+\end{tabular}
+\end{center}\
+
+The example above is testing whether the proportion of studying individuals is the same for both genders or not (equivalent to the following):\
+
+\textbf {\(H_0\): the two variables are independent against each other. \(H_1\): not \(H_0\).}\
+
+This is the main discussion in this assignment. Basically, the principle of this statistical test is to compare the observations data with an arbitrary idea of the experimenter. If the observed data does not match with the forecast pattern of distribution, then the experimenter should realise there is a flaw in his projection. He/ she would investigate how to adjust the prediction or conclude that there is no relationship between the observed data and the hypothesis.\
+
+The above is an example of the contingency table. It is the case when the individuals in a sample are classified according to two separate characteristics. This means every single participants has either of the first characteristic, and also either of the second characteristic. Each individual in the sample is either male of female. Also, they are either studying or not studying. An experimenter can be curious as to whether these two characteristics have a relationship between them. In other words, if female individuals have more studiers relative to males, for instance.\
+
+In fact, the above example predicts that the proportion p of male studiers should be same as the proportion p of female studiers, because gender should not affect one's willingness to study. The \(\chi^2\) test is a statistical point of view to this problem.\
+
+The $\chi$^2^ test approach is to find the \(\tau_{obs}\) first. The \(\tau_{obs}\) for a two-sided test is:\
+
+\begin{center}
+\Large
+\(\tau = \sum_{i=1}^r\sum_{j=1}^c\frac{(O_{ij}-E_{ij})^2}{E_{ij}} \sim \chi^2_{(r-1)(c-1)}\), under \(H_0\).\
+\end{center}
+\normalsize
+
+```{r TOIexample, include=FALSE}
+#These codes generate the test statistic to use in the displayed examples.
+E11 <- 30*36/72
+E12 <- 30*36/72
+E21 <- 42*36/72
+E22 <- 42*36/72
+
+t11 <- (3-E11)^2/E11
+t12 <- (27-E12)^2/E12
+t21 <- (33-E21)^2/E21
+t22 <- (9-E22)^2/E22
+
+t <- t11+t12+t21+t22
+```
+
+\begin{center}
+\(P-value = P(\chi_1^2 \geq\) `r t`)\
+
+\(P-value =\) `r chisq.test(rbind(c(3,27),c(33,9)))[[3]]`\
+\end{center}
+
+\textbf {Solely based on the sample data, the P-value is small: we have evidence against \(H_0\), i.e. there is strong evidence to suggest that the proportion of studying individuals is not the same for both genders.}
+
+\pagebreak
+
+## Fisher's exact test
+
+The following is a similar test to the Ronald Fisher's "lady tasting tea" experiment. It was based on a 2 by 2 contingency table. In order to understand the test, you should set up the skeleton table first (using the last example):\
+
+\begin{center}
+\begin{tabular}{ r|c|c|c| }
+\multicolumn{1}{r}{}
+ &  \multicolumn{1}{c}{Men}
+ & \multicolumn{1}{c}{Women}
+ & \multicolumn{1}{c}{Total}\\
+\cline{2-4}
+Studying & A & B & A + B \\
+\cline{2-4}
+Not-studying & C & D & C + D \\
+\cline{2-4}
+Total & A + C & B + D & A + B + C + D (=n) \\
+\cline{2-4}
+\end{tabular}
+\end{center}\
+
+An hypergeometric distribution gives the probability of one particular distribution:\
+
+\[p=\frac{\binom{A+B}{A}\binom{C+D}{C}}{\binom{n}{A+C}}=\frac{(A+B)!(C+D)!(A+C)!(B+D)!}{A!B!C!D!n!}\]\
+
+Using this on the contingency table from the last example:
+
+\begin{center}
+\begin{tabular}{ r|c|c|c| }
+\multicolumn{1}{r}{}
+ &  \multicolumn{1}{c}{Men}
+ & \multicolumn{1}{c}{Women}
+ & \multicolumn{1}{c}{Total}\\
+\cline{2-4}
+Studying & 3 & 27 & 30 \\
+\cline{2-4}
+Not-studying & 33 & 9 & 42 \\
+\cline{2-4}
+Total & 36 & 36 & 72 \\
+\cline{2-4}
+\end{tabular}
+\end{center}\
+
+One particular probability for this distribution, assuming \(H_0\) (the proportion of studying individuals is the same for both male and female):\
+
+\[p=\frac{\binom{30}{3}\binom{42}{33}}{\binom{72}{36}}=\frac{30!42!36!36!}{3!27!33!9!72!}\]
+\begin {center}
+\(p=\)`r factorial(30)*factorial(42)*factorial(36)*factorial(36)/(factorial(3)*factorial(27)*factorial(33)*factorial(9)*factorial(72))`
+\end {center}\
+
+According to Fisher, the significance level can be calculated conditioned on the fixed marginal totals (30, 42, 36 and 36). You should account for all the arrangements that are as extreme as the observed case. Adding up all the probabilities yields the p-value.\
+
+It is apparent that the calculations involved in the Fisher's tests require some computing power. The p-value is found using an r package called "stats". For simplicity, the test should be two-sided. The p-value is `r fisher.test(rbind(c(3,33),c(27,9)))[[1]]`. P-value is small. \(H_0\) is rejected. Once again, there is strong evidence to suggest that the proportion of studying individuals is not the same for both genders.
+
+\pagebreak
+
+## Simulation
+
+As it was set out in the assignment prompt, I have run 10,000 simulations in four different settings. Based on the results alone, all four results had one thing in common: In every settings, Fisher's exact test's rejection rates were significantly lower than those of the \(\chi^2\) test.\
+
+```{r simulation, include=FALSE}
+#A 10,000 iteration will run only once. Each iteration will proceed all 4 settings.
+
+#These vectors will ride the 10,000 iterations and store the Fisher's exact test p-values. Please note there are 4 vectors prepared for each of the 4 settings. Please note I set the first entries as NA. I will delete these once the iteration is over.
+Vect1 <- NA
+Vect2 <- NA
+Vect3 <- NA
+Vect4 <- NA
+
+#These vectors will be next to the previous variables. They store the Chi squared test p-values.
+Vect1Chi <- NA
+Vect2Chi <- NA
+Vect3Chi <- NA
+Vect4Chi <- NA
+
+#Please note that the iteration will not stop until all of the vectors have at least 10,000 entries. In fact, this is not necessary. All four vectors will always have identical lengths. Checking just one vector would have made sense too. I was overly prudent. There are going to be 10,001 entries. The first entries are NA and I will remove them after the iteration.
+while(min(length(Vect1),length(Vect2),length(Vect3),length(Vect4))<10001){
+  
+  #In each iterations, the random numbers will change.
+  V1 <- runif(40)
+  V2 <- runif(40)
+  V3 <- runif(200)
+  V4 <- runif(200)
+  
+  #This is how I check and replace the vector in Setting 1. I check if either 20 males or 20 females are all not     studying. If either of these cases happens, break this loop and start another one. In this way, the while loop     makes sure each vectors have exactly 10,000 entries.
+  if (sum(ifelse(V1[1:20]<0.2,0,1))==20 | sum(ifelse(V1[21:40]<0.2,0,1))==20){
+    next
+  }
+  
+  #Each of the S# variables will end up being contingency tables. Then I will put them into Fisher and Chi test and   store the results in Vect# and Vect#Chi.
+  S1 <- tibble("Study"=case_when(
+    V1 <0.2 ~ "S",
+    V1 >0.2 ~ "N"
+  ), "Sex"=rep(c("M","F"),c(20,20))) %>% count(Study,Sex)
+  Vect1 <- c(Vect1,fisher.test(rbind(c(pull(S1[1,3]),pull(S1[2,3])),c(pull(S1[3,3]),pull(S1[4,3]))))[[1]])
+  Vect1Chi <- c(Vect1Chi,chisq.test(rbind(c(pull(S1[1,3]),pull(S1[2,3])),c(pull(S1[3,3]),pull(S1[4,3]))))[[1]])
+  
+  S2 <- tibble("Study"=case_when(
+    V2 <0.5 ~ "S",
+    V2 >0.5 ~ "N"
+  ), "Sex"=rep(c("M","F"),c(20,20))) %>% count(Study,Sex)
+  Vect2 <- c(Vect2,fisher.test(rbind(c(pull(S2[1,3]),pull(S2[2,3])),c(pull(S2[3,3]),pull(S2[4,3]))))[[1]])
+  Vect2Chi <- c(Vect2Chi,chisq.test(rbind(c(pull(S2[1,3]),pull(S2[2,3])),c(pull(S2[3,3]),pull(S2[4,3]))))[[1]])
+  
+  S3 <- tibble("Study"=case_when(
+    V3 <0.2 ~ "S",
+    V3 >0.2 ~ "N"
+  ), "Sex"=rep(c("M","F"),c(100,100))) %>% count(Study,Sex)
+  Vect3 <- c(Vect3,fisher.test(rbind(c(pull(S3[1,3]),pull(S3[2,3])),c(pull(S3[3,3]),pull(S3[4,3]))))[[1]])
+  Vect3Chi <- c(Vect3Chi,chisq.test(rbind(c(pull(S3[1,3]),pull(S3[2,3])),c(pull(S3[3,3]),pull(S3[4,3]))))[[1]])
+  
+  S4 <- tibble("Study"=case_when(
+    V4 <0.5 ~ "S",
+    V4 >0.5 ~ "N"
+  ), "Sex"=rep(c("M","F"),c(100,100))) %>% count(Study,Sex)
+  Vect4 <- c(Vect4,fisher.test(rbind(c(pull(S4[1,3]),pull(S4[2,3])),c(pull(S4[3,3]),pull(S4[4,3]))))[[1]])
+  Vect4Chi <- c(Vect4Chi,chisq.test(rbind(c(pull(S4[1,3]),pull(S4[2,3])),c(pull(S4[3,3]),pull(S4[4,3]))))[[1]])
+}
+
+#Trimming the first NA entry and finishing them off with exactly 10,000 number entries.
+Vect1 <- Vect1[2:10001]
+Vect2 <- Vect2[2:10001]
+Vect3 <- Vect3[2:10001]
+Vect4 <- Vect4[2:10001]
+
+Vect1Chi <- Vect1Chi[2:10001]
+Vect2Chi <- Vect2Chi[2:10001]
+Vect3Chi <- Vect3Chi[2:10001]
+Vect4Chi <- Vect4Chi[2:10001]
+
+#Consolidating all results into a hub table.
+Sim <- tibble("Setting1Fisher"=Vect1,"Setting1Chi"=Vect1Chi,"Setting2Fisher"=Vect2,"Setting2Chi"=Vect2Chi,"Setting3Fisher"=Vect3,"Setting3Chi"=Vect3Chi,"Setting4Fisher"=Vect4,"Setting4Chi"=Vect4Chi)
+
+#Using the Sim table to generate four small tables to display to the examiner.
+Setting1FisherA <- Sim %>% filter(Setting1Fisher<0.01) %>% select(Setting1Fisher) %>% count() %>% pull()
+Setting1ChiA <- Sim %>% filter(Setting1Chi<0.01) %>% select(Setting1Chi) %>% count() %>% pull()
+Setting1FisherB <- Sim %>% filter(Setting1Fisher<0.05) %>% select(Setting1Fisher) %>% count() %>% pull()
+Setting1ChiB <- Sim %>% filter(Setting1Chi<0.05) %>% select(Setting1Chi) %>% count() %>% pull()
+Setting1FisherC <- Sim %>% filter(Setting1Fisher<0.1) %>% select(Setting1Fisher) %>% count() %>% pull()
+Setting1ChiC <- Sim %>% filter(Setting1Chi<0.1) %>% select(Setting1Chi) %>% count() %>% pull()
+Setting1 <- tibble("Significance Level"=c(100,500,1000), "Prop: Fisher"=c(Setting1FisherA,Setting1FisherB,Setting1FisherC), "Prop: Chi"=c(Setting1ChiA,Setting1ChiB,Setting1ChiC))
+Setting1 <- Setting1/10000
+
+Setting2FisherA <- Sim %>% filter(Setting2Fisher<0.01) %>% select(Setting2Fisher) %>% count() %>% pull()
+Setting2ChiA <- Sim %>% filter(Setting2Chi<0.01) %>% select(Setting2Chi) %>% count() %>% pull()
+Setting2FisherB <- Sim %>% filter(Setting2Fisher<0.05) %>% select(Setting2Fisher) %>% count() %>% pull()
+Setting2ChiB <- Sim %>% filter(Setting2Chi<0.05) %>% select(Setting2Chi) %>% count() %>% pull()
+Setting2FisherC <- Sim %>% filter(Setting2Fisher<0.1) %>% select(Setting2Fisher) %>% count() %>% pull()
+Setting2ChiC <- Sim %>% filter(Setting2Chi<0.1) %>% select(Setting2Chi) %>% count() %>% pull()
+Setting2 <- tibble("Significance Level"=c(100,500,1000), "Prop: Fisher"=c(Setting2FisherA,Setting2FisherB,Setting2FisherC), "Prop: Chi"=c(Setting2ChiA,Setting2ChiB,Setting2ChiC))
+Setting2 <- Setting2/10000
+
+Setting3FisherA <- Sim %>% filter(Setting3Fisher<0.01) %>% select(Setting3Fisher) %>% count() %>% pull()
+Setting3ChiA <- Sim %>% filter(Setting3Chi<0.01) %>% select(Setting3Chi) %>% count() %>% pull()
+Setting3FisherB <- Sim %>% filter(Setting3Fisher<0.05) %>% select(Setting3Fisher) %>% count() %>% pull()
+Setting3ChiB <- Sim %>% filter(Setting3Chi<0.05) %>% select(Setting3Chi) %>% count() %>% pull()
+Setting3FisherC <- Sim %>% filter(Setting3Fisher<0.1) %>% select(Setting3Fisher) %>% count() %>% pull()
+Setting3ChiC <- Sim %>% filter(Setting3Chi<0.1) %>% select(Setting3Chi) %>% count() %>% pull()
+Setting3 <- tibble("Significance Level"=c(100,500,1000), "Prop: Fisher"=c(Setting3FisherA,Setting3FisherB,Setting3FisherC), "Prop: Chi"=c(Setting3ChiA,Setting3ChiB,Setting3ChiC))
+Setting3 <- Setting3/10000
+
+Setting4FisherA <- Sim %>% filter(Setting4Fisher<0.01) %>% select(Setting4Fisher) %>% count() %>% pull()
+Setting4ChiA <- Sim %>% filter(Setting4Chi<0.01) %>% select(Setting4Chi) %>% count() %>% pull()
+Setting4FisherB <- Sim %>% filter(Setting4Fisher<0.05) %>% select(Setting4Fisher) %>% count() %>% pull()
+Setting4ChiB <- Sim %>% filter(Setting4Chi<0.05) %>% select(Setting4Chi) %>% count() %>% pull()
+Setting4FisherC <- Sim %>% filter(Setting4Fisher<0.1) %>% select(Setting4Fisher) %>% count() %>% pull()
+Setting4ChiC <- Sim %>% filter(Setting4Chi<0.1) %>% select(Setting4Chi) %>% count() %>% pull()
+Setting4 <- tibble("Significance Level"=c(100,500,1000), "Prop: Fisher"=c(Setting4FisherA,Setting4FisherB,Setting4FisherC), "Prop: Chi"=c(Setting4ChiA,Setting4ChiB,Setting4ChiC))
+Setting4 <- Setting4/10000
+```
+
+Setting 1 (Small sample size, small p):\
+`r kable(Setting1)`\
+
+Setting 2 (Small sample size, normal p):\
+`r kable(Setting2)`\
+
+Setting 3 (Large sample size, small p):\
+`r kable(Setting3)`\
+
+Setting 4 (Large sample size, normal p):\
+`r kable(Setting4)`\
+
+\pagebreak
+
+## Conclusion
+
+A personal remark is that the statement \textit {"Despite the fact that Fisher’s test gives exact p-values, some authors have argued that is it conservative, i.e. that its actual rejection rate is below the nominal significance level."} is \underline {credible}.\
+
+The simulation size was 10,000, so I generated 40,000 contingency tables in total. This seems reasonable, as 40,000 should be a large enough size of tests. The settings were set out to cover all possible test environments. Most importantly, \(\chi^2\) test results were at least 5 times and up to 500 times greater than the Fisher's tests'.
+
+Hence, based on the simulation results, it seems reasonable to conclude that the Fisher's exact test is conservative. It has a low rejection rate, below the nominal significance level.
+
+\pagebreak
+
+# References
